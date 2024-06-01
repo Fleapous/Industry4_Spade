@@ -8,6 +8,7 @@ from Enums.MachineType import MachineType
 
 class ProductionOrder:
     def __init__(self):
+        self.agent_jid: str = ""
         self.items: List[Item] = []
         self.index = 0
         self.timeSent = datetime.now()
@@ -29,6 +30,10 @@ class ProductionOrder:
     def print_items(self):
         item_types = [item.itemType.name for item in self.items]
         return "".join(item_types)
+
+    def print_as_msg_body(self):
+        item_types = [item.itemType.name for item in self.items]
+        return "".join(item_types) + "$" + self.agent_jid
 
     def mark_item_done(self):
         if self.index < len(self.items):

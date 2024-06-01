@@ -2,8 +2,8 @@ import asyncio
 
 from Agents.MachineAgent import MachineAgent
 from Agents.ManagerAgent import ManagerAgent
-from Agents.ProductionAgent import ProductionAgent
 from Agents.FactoryManagerAgent import FactoryManagerAgent
+from Agents.MachineManagerAgent import MachineManagerAgent
 
 if __name__ == '__main__':
     # machines = \
@@ -21,11 +21,11 @@ if __name__ == '__main__':
 
     prodAgents = \
         [
-            ProductionAgent("test_agent@jabbim.pl/0", "123", 30),
+            FactoryManagerAgent("test_agent@jabbim.pl/0", "123", 30),
             # ProductionAgent("test_agent@jabbim.pl/1", "123", 6)
         ]
 
-    factoryAgent = FactoryManagerAgent("test_agent@jabbim.pl/1", "123")
+    factoryAgent = MachineManagerAgent("test_agent@jabbim.pl/1", "123")
 
     for prodAgent in prodAgents:
         prodAgent.start()

@@ -1,5 +1,6 @@
 import random
 from datetime import datetime
+from typing import List
 
 from Classes.Item import Item
 from Enums.MachineType import MachineType
@@ -7,7 +8,7 @@ from Enums.MachineType import MachineType
 
 class ProductionOrder:
     def __init__(self):
-        self.items = []
+        self.items: List[Item] = []
         self.index = 0
         self.timeSent = datetime.now()
         self.timeReceived = None
@@ -24,6 +25,10 @@ class ProductionOrder:
             return self.items[self.index]
         else:
             return None
+
+    def print_items(self):
+        item_types = [item.itemType.name for item in self.items]
+        return "".join(item_types)
 
     def mark_item_done(self):
         if self.index < len(self.items):

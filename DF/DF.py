@@ -9,7 +9,11 @@ class Property:
     def __eq__(self, other):
         if not isinstance(other, Property):
             return False
-        return self.name == other.name and self.value == other.value
+        # print(f"selfs name: {self.name}, others name: {other.name}")
+        # print(f"selfs value {self.value}, others value {other.value}")
+        value_ = self.name == other.name and (other.value is None or self.value == other.value)
+        # print(value_)
+        return value_
 
     def __repr__(self):
         return f'{self.name}: {self.value}'
@@ -51,6 +55,7 @@ class DF:
         self.agents = []
 
     def search(self, query: AgentDescription) -> List[AgentDescription]:
+        # print(f"query: {query.services}")
         matching_agents = []
         for agent in self.agents:
             if all(
@@ -70,6 +75,7 @@ class DF:
 
     def register(self, agent_description: AgentDescription) -> None:
         self.agents.append(agent_description)
+        print(f"agent got registered! {agent_description.name}. the services: {agent_description.services}")
         return
 
 

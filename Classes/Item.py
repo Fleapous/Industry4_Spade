@@ -2,8 +2,8 @@ from datetime import datetime
 
 
 class Item:
-    def __init__(self, itemType):
-        self.itemType = itemType
+    def __init__(self, item_type: str):
+        self.itemType = item_type
         self.isDone = False
         self.completedDate = None
 

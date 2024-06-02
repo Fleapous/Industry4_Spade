@@ -15,8 +15,10 @@ from spade.agent import Agent
 from spade.behaviour import CyclicBehaviour, OneShotBehaviour
 from spade.template import Template
 
+from Classes.Util import get_order_info, get_sender_info, is_done, get_next_item_index, get_item_list_parts
 from DF.DF import ServiceDescription, Property, AgentDescription, df
 from Classes.ProductionOrder import ProductionOrder
+from Enums.MachineType import MachineType
 
 
 class MachineManagerAgent(Agent):
@@ -45,15 +47,11 @@ class MainBehaviour(CyclicBehaviour):
         self.orders: List[ProductionOrder] = []
         self.items: List[str] = []
 
-    def get_item_list(self) -> str:
-        # TODO get the items from
-        return "ABC"
-
     async def on_start(self) -> None:
         print("started to look for orders")
-        items = self.get_item_list()  # TODO change this with items
+        self.get_item_list()
         manager_service: ServiceDescription = ServiceDescription(type="manager")
-        for item in items:
+        for item in self.items:
             type_property: Property = Property(item, 10)
             manager_service.add_property(type_property)
         agent_description: AgentDescription = AgentDescription(self.agent.jid)
@@ -73,7 +71,7 @@ class MainBehaviour(CyclicBehaviour):
         elif msg.get_metadata("ontology") == "order_finished":
             self.finished_order_received()
         elif msg.get_metadata("ontology") == "scheduled_maintenance":
-            self.edit_item_service()
+            self.get_item_list()
 
         """
             wait for messages
@@ -95,10 +93,58 @@ class MainBehaviour(CyclicBehaviour):
         """
 
     def order_received(self, msg):
-        print(f"order received!! order: {msg.body}")
+        order = msg.body
+        print(f"order received!! order: {get_order_info(order)}. order sender: {get_sender_info(order)}")
+        if not is_done(get_order_info(order)):
+            machine = self.find_machine(order)
+            if machine != "":
+                self.send_order(order, machine)
+            else:
+                manager = self.get_available_manager(order)
+                if manager != "":
+                    self.send_order(order, manager)
+        else:
+            self.finished_order_received()
 
     def finished_order_received(self):
         pass
 
-    def edit_item_service(self):
+    def get_item_list(self):
+        all_machine_types = list(MachineType)
+        self.items = all_machine_types
+
+    def find_machine(self, order: str) -> str:
+        order_items = get_order_info(order)
+        item_index = get_next_item_index(order_items)
+        item = order_items[item_index]
+
+        machine_service: ServiceDescription = ServiceDescription(type=f"machine${str(self.agent.jid)}")
+        type_property: Property = Property(item, None)
+        machine_service.add_property(type_property)
+        query: AgentDescription = AgentDescription()
+        query.add_service(machine_service)
+        machines = df.search(query)
+
+        if machines:
+            # TODO add sm logic here for picking the good one
+            return machines[0].name
+        return ""
+
+    def send_order(self, order: str, agent_jid: str) -> bool:
         pass
+
+    def get_available_manager(self, order: str) -> str:
+        order_items = get_order_info(order)
+        items = get_item_list_parts(order_items)
+
+        manager_service: ServiceDescription = ServiceDescription(type="manager")
+        for item in items:
+            type_property: Property = Property(item, None)
+            manager_service.add_property(type_property)
+        query: AgentDescription = AgentDescription()
+        query.add_service(manager_service)
+        managers = df.search(query)
+        if managers:
+            # TODO add sm logic to it and dont pick the same agent
+            return managers[0].name
+        return ""

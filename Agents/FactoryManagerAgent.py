@@ -6,6 +6,7 @@ from spade.behaviour import PeriodicBehaviour
 from spade.message import Message
 
 from Classes.ProductionOrder import ProductionOrder
+from Classes.Util import get_item_list_parts
 from DF.DF import ServiceDescription, Property, AgentDescription, df
 
 
@@ -40,7 +41,7 @@ class ProductionOrderBehaviour(PeriodicBehaviour):
         production_order = self.agent.orders[self.agent.current_order]
         production_order.agent_jid = str(self.agent.jid)
         order = production_order.print_items()
-        types = set(order)
+        types = get_item_list_parts(order)
         print(f"order: {order}")
 
         manager_service: ServiceDescription = ServiceDescription(type="manager")

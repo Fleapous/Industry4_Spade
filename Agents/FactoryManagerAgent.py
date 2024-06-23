@@ -35,7 +35,7 @@ def pick_manager(order: str, managers: list[AgentDescription]):
     manager: AgentDescription
     for manager in managers:
         manager_score = 0
-        service: ServiceDescription = manager.services["Manager"]
+        service: ServiceDescription = manager.services["manager"]
         if service:
             property: Property
             for property in service.properties:
@@ -59,7 +59,7 @@ class ProductionOrderBehaviour(OneShotBehaviour):
         log(self.agent, "Factory manager starting.")
 
     async def on_end(self):
-        log(self.agent, "Factory manager finished.")
+        log(self.agent, "Factory manager stopping.")
         await self.agent.stop()
 
     async def run(self):
@@ -67,16 +67,15 @@ class ProductionOrderBehaviour(OneShotBehaviour):
             msg = await self.receive(10)
             if msg is None:
                 continue
-            order = msg.body
-            order_items = get_order_info(order)
-            log(self.agent, f"Received Order: {order_items}. Looking for GOM Managers.")
-            managers = get_managers(order_items)
+            order = get_order_info(msg.body)
+            log(self.agent, f"Received Order: {order}. Looking for GOM Managers.")
+            managers = get_managers(order)
             if managers:
                 log(self.agent, f"Found {managers.count} GOM Managers. Choosing optimal candidate.")
-                picked_manager = pick_manager(managers)
-                log(self.agent, f"GOM Manager chosen: {picked_manager.name}. Sending Order: {order_items}.")
+                picked_manager = pick_manager(order, managers)
+                log(self.agent, f"GOM Manager chosen: {picked_manager.name}. Sending Order: {order}.")
                 msg = Message(to=str(picked_manager.name))
                 msg.set_metadata("ontology", "order_request")
-                msg.body = order_items
+                msg.body = order
                 await self.send(msg)
             await asyncio.sleep(1)

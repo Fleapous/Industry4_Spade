@@ -23,19 +23,16 @@ class ServiceDescription:
     def __init__(self, name: str = None, type: str = None):
         self.name: str = name
         self.type: str = type
-        self.properties: dict[str, object] = {}
+        self.properties: dict[str, Property] = {}
 
     def __repr__(self):
         return f'{self.name}: {self.type}, {self.properties}'
 
     def add_property(self, property: Property):
-        self.properties[property.name] = property.value
+        self.properties[property.name] = property
 
     def update_property(self, property: Property) -> None:
-        self.properties[property.name] = property.value
-
-    def update_property_m(self, name: str, value: object) -> None:
-        self.properties[name] = value
+        self.properties[property.name] = property
 
     def remove_property(self, property: Property):
         self.properties.pop(property.name, "not found")

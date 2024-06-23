@@ -1,6 +1,10 @@
+from typing import Optional
+
 from DF.DF import ServiceDescription, Property, AgentDescription, df
 from spade.agent import Agent
 from datetime import datetime
+
+from Enums.MachineType import MachineType
 
 
 def get_sender_info(order: str) -> str:
@@ -31,13 +35,13 @@ def get_next_item_index(order_list: str) -> int:
     return -1
 
 
-def mark_done(item_index: int, order_list: str) -> str:
-    if 0 <= item_index < len(order_list):
-        order_list = list(order_list)
+def mark_done(item_index: int, order: str) -> str:
+    if 0 <= item_index < len(order):
+        order_list = list(order)
         order_list[item_index] = '*'
         return ''.join(order_list)
     else:
-        return order_list
+        return order
 
 
 def get_item_list_parts(item_list: str) -> list:
@@ -69,7 +73,12 @@ def get_managers(order_items: str) -> list[AgentDescription]:
 
 
 def get_type(desc: AgentDescription) -> str:
-    return list(desc.services["Machine"].properties)[0]
+    return desc.services["machine"].properties["type"].value
+
 
 def log(agent: Agent, message: str):
     print(f"[{datetime.time}] {agent.jid}: {message}")
+
+
+def get_types() -> list[str]:
+    return [str(s)[-1] for s in set(MachineType)]

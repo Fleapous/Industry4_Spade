@@ -23,41 +23,48 @@ class ServiceDescription:
     def __init__(self, name: str = None, type: str = None):
         self.name: str = name
         self.type: str = type
-        self.properties = []
+        self.properties: dict[str, object] = {}
 
     def __repr__(self):
         return f'{self.name}: {self.type}, {self.properties}'
 
     def add_property(self, property: Property):
-        self.properties.append(property)
+        self.properties[property.name] = property.value
+
+    def update_property(self, property: Property) -> None:
+        self.properties[property.name] = property.value
+
+    def update_property_m(self, name: str, value: object) -> None:
+        self.properties[name] = value
 
     def remove_property(self, property: Property):
-        self.properties.remove(property)
+        self.properties.pop(property.name, "not found")
 
 
 class AgentDescription:
     def __init__(self, name: str = None):
         self.name: str = name
-        self.services = []
+        self.services: dict[str, ServiceDescription] = {}
 
     def __repr__(self):
         return f'{self.name}: {self.services}'
 
     def add_service(self, service: ServiceDescription):
-        self.services.append(service)
+        self.services[service.type] = service
 
     def remove_service(self, service: ServiceDescription):
-        self.services.remove(service)
+        self.services.pop(service.type, "not found")
 
 
 class DF:
     def __init__(self):
-        self.agents = []
+        self.agents: dict[str, AgentDescription] = {}
 
-    def search(self, query: AgentDescription) -> List[AgentDescription]:
+    def search(self, query: AgentDescription) -> list[AgentDescription]:
         # print(f"query: {query.services}")
         matching_agents = []
-        for agent in self.agents:
+        agent: AgentDescription
+        for agent in self.agents.values():
             if all(
                     any(
                         service.type == query_service.type and all(
@@ -65,18 +72,23 @@ class DF:
                                 property == query_property for query_property in query_service.properties
                             ) for property in service.properties
                         )
-                        for service in agent.services
+                        for service in agent.services.values()
                     )
-                    for query_service in query.services
+                    for query_service in query.services.values()
             ):
                 matching_agents.append(agent)
 
         return matching_agents
 
     def register(self, agent_description: AgentDescription) -> None:
-        self.agents.append(agent_description)
+        self.agents[agent_description.name] = agent_description
         print(f"agent got registered! {agent_description.name}. the services: {agent_description.services}")
         return
 
+    def update(self, agent_description: AgentDescription) -> None:
+        self.agents[agent_description.name] = agent_description
+
+    def remove(self, agent_description: AgentDescription) -> None:
+        self.agents.pop(agent_description.name, "not found")
 
 df: DF = DF()

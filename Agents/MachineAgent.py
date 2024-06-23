@@ -4,7 +4,7 @@ from DF.DF import df, AgentDescription, ServiceDescription, Property
 
 
 class MachineAgent(Agent):
-    def __init__(self, jid: str, password: str, type: str, *args, **kwargs):
+    def __init__(self, jid: str, password: str, type: str, group: str, *args, **kwargs):
         super().__init__(jid, password, *args, **kwargs)
         self.type = type
 

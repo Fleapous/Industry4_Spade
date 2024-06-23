@@ -1,3 +1,8 @@
+from DF.DF import ServiceDescription, Property, AgentDescription, df
+from spade.agent import Agent
+from datetime import datetime
+
+
 def get_sender_info(order: str) -> str:
     dollar_index = order.find('$')
 
@@ -41,3 +46,30 @@ def get_item_list_parts(item_list: str) -> list:
     return list(item_set)
 
 
+def get_item_list_counts(item_list: str) -> dict:
+    count_dict: dict[str, int] = {}
+    for item in item_list:
+        if item in count_dict:
+            count_dict[item] += 1
+        else:
+            count_dict[item] = 1
+
+    return count_dict
+
+def get_managers(order_items: str) -> list[AgentDescription]:
+    types = get_item_list_parts(order_items)
+    manager_service: ServiceDescription = ServiceDescription(type="manager")
+    for type in types:
+        type_property: Property = Property(type, None)
+        manager_service.add_property(type_property)
+    query: AgentDescription = AgentDescription()
+    query.add_service(manager_service)
+    managers = df.search(query)
+    return managers
+
+
+def get_type(desc: AgentDescription) -> str:
+    return list(desc.services["Machine"].properties)[0]
+
+def log(agent: Agent, message: str):
+    print(f"[{datetime.time}] {agent.jid}: {message}")

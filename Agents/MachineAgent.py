@@ -1,5 +1,6 @@
 import asyncio
 import random
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -8,7 +9,9 @@ from spade.behaviour import FSMBehaviour, State
 from spade.message import Message
 
 from Classes.Util import log, get_order_info, get_next_item_index, mark_done, is_done, Orders
+from Classes.Util import log, get_order_info, get_next_item_index, mark_done, Log
 from DF.DF import df, AgentDescription, ServiceDescription, Property
+from create_report import calculate_state_percentages_for_agent
 
 
 class MachineAgent(Agent):
@@ -23,6 +26,39 @@ class MachineAgent(Agent):
         self.manager: str = ""
         self.description: AgentDescription = AgentDescription()
         self.maintenance_probability = 0.1
+
+    async def get_machine_info(self, request):
+        previous_orders_list = [f"{key}: {value}" for key, value in self.previous_orders.items()]
+
+        # Search for messages related to maintenance
+        maintenance_messages = []
+        maintenance_pattern = r"Maintenance\. The machine will be offline for (\d+)s"
+        maintenance_over_pattern = r"Maintenance over\."
+
+        if self.jid in Log:
+            for log_message in Log[self.jid]:
+                match_maintenance = re.search(maintenance_pattern, log_message.message)
+                match_maintenance_over = re.search(maintenance_over_pattern, log_message.message)
+                if match_maintenance:
+                    offline_time = int(match_maintenance.group(1))
+                    maintenance_messages.append((log_message.time, f"Maintenance: Machine offline for {offline_time}s"))
+                elif match_maintenance_over:
+                    maintenance_messages.append((log_message.time, "Maintenance over."))
+
+        # Sort maintenance messages by timestamp
+        maintenance_messages.sort(key=lambda x: x[0])
+
+        return {
+            "jid": self.jid,
+            "type": self.type,
+            "group": self.group,
+            "current_order": self.current_order,
+            "previous_orders": previous_orders_list,
+            "previous_agent": self.previous_agent,
+            "manager": self.manager,
+            "working_times": calculate_state_percentages_for_agent(self.jid),
+            "maintenance_messages": [f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}" for time, message in maintenance_messages]
+        }
 
     async def setup(self) -> None:
         self.presence.approve_all = True

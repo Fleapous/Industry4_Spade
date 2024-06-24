@@ -1,0 +1,13 @@
+<html>
+  <head>
+    <title>{{ agent.jid }}</title>
+  </head>
+  <body>
+    I am {{ agent.jid }}
+    <ol>
+      {% for productionOrder in productionOrders %}
+        <li>order: {{ productionOrder.order }} time sent: {{ productionOrder.orderSentDate }} </li>
+      {% endfor %}
+    </ol>
+  </body>
+</html>

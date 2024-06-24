@@ -8,7 +8,7 @@ from Agents.GroupManagerAgent import GroupManagerAgent
 from Agents.MachineAgent import MachineAgent
 
 from Classes.Util import get_types, Log
-
+from create_report import plot_average_state_durations
 
 
 async def main():
@@ -25,13 +25,24 @@ async def main():
             machine_agent = MachineAgent(f"industry41@pimux.de/{group}{machine}", "123123", str(type), str(group))
             machines.append(machine_agent)
 
+    machine_ports = 0
     for machine in machines:
-        machine.start()
+        machine.start(auto_register=True)
+
+        machine.web.add_get("/machineInfo", machine.get_machine_info, "./machineInfo.html")
+        machine.web.start(port=10010 + machine_ports)
         await asyncio.sleep(0.2)
+        machine_ports += 1
+    machine_ports = 0
     for manager in machine_group_managers:
-        manager.start()
+        manager.start(auto_register=True)
+
+        manager.web.add_get("/managerInfo", manager.get_machines, "./group_manager.html")
+        manager.web.start(port=10020 + machine_ports)
         await asyncio.sleep(0.2)
+        machine_ports += 1
     await asyncio.sleep(0.5)
+
     factory_manager.start()
     # await asyncio.sleep(0.2)
     # await god_agent.start()
@@ -49,9 +60,20 @@ async def main():
         await manager.stop()
     await factory_manager.stop()
     await god_agent.stop()
+
     for entry in Log:
         print(f"{entry}\n")
 
 if __name__ == '__main__':
     asyncio.run(main())
 
+
+    # prodAgent.web.add_get("/hello", prodAgent.get_orders_from_factory_manager, "./hello.html")
+    # prodAgent.start(auto_register=True)
+    # port = 10000
+    # prodAgent.web.start(port=port)
+    #
+    # prodAgent1.web.add_get("/hello", prodAgent1.get_orders_from_factory_manager, "./hello.html")
+    # prodAgent1.start(auto_register=True)
+    # port = 10001
+    # prodAgent1.web.start(port=port)

@@ -1,5 +1,6 @@
 import asyncio
-from typing import List
+from asyncio import Future
+from typing import List, Union, Coroutine
 
 import spade.agent
 from datetime import datetime, timedelta
@@ -10,7 +11,7 @@ from Classes.ProductionOrder import ProductionOrder
 from Classes.Util import get_managers, log, get_order_info, get_item_list_parts, get_item_list_counts, Orders, \
     OrderRecord
 from DF.DF import ServiceDescription, Property, AgentDescription, df
-
+from create_report import plot_average_state_durations, plot_order_times
 
 INIT = "INIT"
 WORKING = "WORKING"
@@ -24,6 +25,22 @@ class FactoryManagerAgent(spade.agent.Agent):
     async def setup(self) -> None:
         behaviour = ProductionOrderBehaviour(self)
         self.add_behaviour(behaviour)
+
+    async def stop(self) -> Union[Coroutine, Future]:
+        pass
+    async def get_orders_from_factory_manager(self, request):
+        production_orders = []
+
+        for b in self.orders:
+            prodOrder = {
+                "order": str(b.print_items()),
+                "orderSentDate": str(b.timeSent)
+            }
+            production_orders.append(prodOrder)
+
+        return {
+            "productionOrders": production_orders
+        }
 
 
 def pick_manager(order: str, managers: list[AgentDescription]):
@@ -88,4 +105,6 @@ class ProductionOrderBehaviour(OneShotBehaviour):
                 msg.set_metadata("order_id", str(self.agent.order_id))
                 msg.body = order
                 await self.send(msg)
+            plot_average_state_durations()
+            plot_order_times()
             await asyncio.sleep(1)

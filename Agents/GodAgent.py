@@ -1,3 +1,6 @@
+from asyncio import Future
+from typing import Union, Coroutine
+
 import asyncio
 
 from spade.agent import Agent
@@ -8,6 +11,7 @@ from spade.message import Message
 from Classes.ProductionOrder import ProductionOrder
 
 from Classes.Util import log
+from create_report import plot_average_state_durations
 
 
 class GodAgent(Agent):
@@ -20,6 +24,10 @@ class GodAgent(Agent):
     def setup(self) -> None:
         behaviour = self.GodAgentBehaviour()
         self.add_behaviour(behaviour)
+
+    def stop(self) -> Union[Coroutine, Future]:
+        plot_average_state_durations()
+
 
 
     class GodAgentBehaviour(CyclicBehaviour):

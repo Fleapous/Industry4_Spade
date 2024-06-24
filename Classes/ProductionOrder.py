@@ -11,8 +11,11 @@ class ProductionOrder:
         self.agent_jid: str = ""
         self.items: List[Item] = []
         self.index = 0
-        self.timeSent = datetime.now()
+        self.timeSent = None
         self.timeReceived = None
+
+    def __repr__(self):
+        return f'ProductionOrder(agent_jid={self.agent_jid}, index={self.index}, timeSent={self.timeSent}, timeReceived={self.timeReceived})'
 
     def generate_items(self, min_items=1, max_items=10):
         num_items = random.randint(min_items, max_items)

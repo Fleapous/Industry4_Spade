@@ -9,6 +9,8 @@ put incomplete orders to order service
 repeat
 """
 import asyncio
+import datetime
+import re
 from typing import List, Optional, TypedDict
 
 from spade.agent import Agent
@@ -17,10 +19,13 @@ import spade.template
 from spade.message import Message
 
 from Classes.Util import get_order_info, get_sender_info, is_done, get_next_item_index, get_item_list_parts, \
-    get_managers, log, get_type, get_types
+    get_managers, log, get_type, get_types, Log
 from DF.DF import ServiceDescription, Property, AgentDescription, df
 from Classes.ProductionOrder import ProductionOrder
 from Enums.MachineType import MachineType
+
+
+# from create_report import agent_messages
 
 
 class MachineInfo(TypedDict):
@@ -36,6 +41,55 @@ class GroupManagerAgent(Agent):
     async def setup(self) -> None:
         main = MainBehaviour(self)
         self.add_behaviour(main)
+
+    async def get_machines(self, request):
+        unavailable_machines = []
+        managed_machines = []
+
+        # Extract group number from self.jid
+        if '/' in str(self.jid):
+            base_jid, resource = str(self.jid).rsplit('/', 1)
+            if resource.isdigit() and len(resource) == 1:
+                group_number = resource
+            else:
+                raise ValueError("Invalid group number in self.jid")
+        else:
+            raise ValueError("Invalid format for self.jid")
+
+        # Search for messages indicating machine unavailability
+        unavailable_pattern = r"Machine ([0-9]+) of type [0-9] is unavailable."
+
+        if self.jid in Log:
+            messages = Log[self.jid]
+
+            # List to store the most recent 5 unavailable machine messages
+            recent_unavailable = []
+
+            for log_message in reversed(messages):
+                if len(recent_unavailable) >= 5:
+                    break
+
+                if "Machine" in log_message.message and "is unavailable." in log_message.message:
+                    match = re.search(unavailable_pattern, log_message.message)
+                    if match:
+                        machine_number = match.group(1)
+                        recent_unavailable.append(f"{log_message.time}: Machine {machine_number}")
+
+            # Reverse the list to maintain chronological order
+            recent_unavailable.reverse()
+            unavailable_machines = recent_unavailable
+
+        # Get machines controlled by the manager
+        for agent_jid, messages in Log.items():
+            if agent_jid.startswith(base_jid) and '/' in agent_jid:
+                _, resource = agent_jid.rsplit('/', 1)
+                if resource.isdigit() and len(resource) == 2 and resource[0] == group_number:
+                    managed_machines.append(agent_jid)
+
+        return {
+            "unavailable_machines": unavailable_machines,
+            "managed_machines": managed_machines
+        }
 
 
 class MainBehaviour(spade.behaviour.CyclicBehaviour):

@@ -11,3 +11,5 @@ class Item:
         self.isDone = True
         self.completedDate = datetime.now()
 
+    def __repr__(self):
+        return f'Item(itemType={self.itemType}, isDone={self.isDone}, completedDate={self.completedDate})'

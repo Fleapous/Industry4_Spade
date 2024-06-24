@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{{ agent.jid }}</title>
+  </head>
+  <body>
+    <h1>This is: {{jid}}</h1>
+    <h2>Manager {{manager}}</h2>
+    <h2>Previous Orders</h2>
+    <ol>
+      {% for prev_order in previous_orders %}
+        <li>order: {{ prev_order }} </li>
+      {% endfor %}
+    </ol>
+    <ol>
+      {% for working_time in working_times %}
+        <li> working times: {{ working_times }} </li>
+      {% endfor %}
+    </ol>
+    <ol>
+      {% for maintenance_message in maintenance_messages %}
+        <li> maintenance log: {{ maintenance_message }} </li>
+      {% endfor %}
+    </ol>
+  </body>
+</html>

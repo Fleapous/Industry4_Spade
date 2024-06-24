@@ -1,0 +1,19 @@
+<html>
+  <head>
+    <title>{{ agent.jid }}</title>
+  </head>
+  <body>
+    <h1>{{test}}</h1>
+    I am {{ agent.jid }}
+    <ol>
+      {% for unavailable_machine in unavailable_machines %}
+        <li>machine: {{ unavailable_machine }}</li>
+      {% endfor %}
+    </ol>
+    <ol>
+      {% for managed_machine in managed_machines %}
+        <li>own machines: {{ managed_machine }}</li>
+      {% endfor %}
+    </ol>
+  </body>
+</html>

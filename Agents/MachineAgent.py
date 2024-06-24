@@ -216,9 +216,9 @@ class MachineBehaviour(FSMBehaviour):
             new_order = mark_done(next_index, order)
             await asyncio.sleep(1)
             log(self.agent, f"Work done on order {new_order}, order_id: {order_id}.")
-            if is_done(order):
+            if is_done(new_order):
                 log(self.agent, f"Order completed: {order}, order_id: {order_id}")
-                Orders[int(order_id)].end = datetime.now()
+                Orders[int(order_id) - 1].end = datetime.now()
             await self.send_order(self.agent.previous_agent, order, order_id,"order_part_completed")
             self.agent.previous_agent = ""
             return new_order

@@ -47,17 +47,16 @@ class MainBehaviour(spade.behaviour.CyclicBehaviour):
         self.description: AgentDescription = AgentDescription()
 
     async def on_start(self) -> None:
-        log(self.agent, "GoM Manager Bahaviour starting. Waiting 1s for machines")
-        await asyncio.sleep(1)
-        log(self.agent, "Looking for Machines in Group")
+        log(self.agent, "GoM Manager Bahaviour starting. Waiting 3s for machines")
+        await asyncio.sleep(3)
+        log(self.agent, f"Looking for Machines in Group {self.agent.group}")
         self.machines = await self.get_machines()
+        log(self.agent, f"Machines found: {len(self.machines)}")
         await self.setup_presence()
-        msg: Message = Message(body="Machines initialized")
-        machine: MachineInfo
-        for machine in self.machines.values():
-            msg.to = machine["description"].name
+        machine: str
+        for machine in self.machines.keys():
+            msg: Message = Message(to=str(machine), body="Machines initialized")
             await self.send(msg)
-        log(self.agent, f"Machines found: {self.machines}")
         self.description = await self.register()
         log(self.agent, f"Registering Manager Service with the DF: {self.description}")
         log(self.agent, "GoM Manager Bahaviour startup finished")
@@ -72,9 +71,9 @@ class MainBehaviour(spade.behaviour.CyclicBehaviour):
         self.presence.set_available()
         machine_jid: str
         for machine_jid in self.machines.keys():
-            self.presence.subscribe(machine_jid)
+            self.presence.subscribe(str(machine_jid))
 
-    def on_available(self, jid) -> None:
+    def on_available(self, jid, stanza) -> None:
         machine = self.machines[jid]
         if machine["available"]:
             return
@@ -86,7 +85,7 @@ class MainBehaviour(spade.behaviour.CyclicBehaviour):
         log(self.agent, f"Machine {jid} of type {type} is available.")
         self.machines[jid]["available"] = True
 
-    def on_unavailable(self, jid) -> None:
+    def on_unavailable(self, jid, stanza) -> None:
         machine = self.machines[jid]
         if not machine["available"]:
             return
@@ -105,40 +104,54 @@ class MainBehaviour(spade.behaviour.CyclicBehaviour):
         query: AgentDescription = AgentDescription()
         query.add_service(machine_service)
         machines = df.search(query)
-        return {machine.name: {"available": True, "description": machine} for machine in machines}
+        result: dict[str, MachineInfo] = {}
+        machine: AgentDescription
+        for machine in machines:
+            if result.get(machine.name) is None:
+                result[machine.name] = {"available": True, "description": machine}
+        return result
 
     async def register(self) -> AgentDescription:
-
         types = get_types()
         machine_type_counts = {type: 0 for type in types}
 
-        machine: AgentDescription
-        for machine in [info["description"] for info in self.machines.values()]:
-            service: ServiceDescription = machine.services["machine"]
-            property: Property
-            for property in service.properties.values():
-                machine_type_counts[property.name] += 1
+        try:
+            for machine in [info["description"] for info in self.machines.values()]:
+                property: Property = machine.services["machine"].properties["type"]
+                machine_type_counts[property.value] += 1
 
-        manager_service: ServiceDescription = ServiceDescription(type="manager")
-        for machine_type, count in machine_type_counts.items():
-            type_property: Property = Property(machine_type, count)
-            manager_service.add_property(type_property)
+            manager_service = ServiceDescription(type="manager")
+            for machine_type, count in machine_type_counts.items():
+                type_property = Property(machine_type, count)
+                manager_service.add_property(type_property)
 
-        agent_description: AgentDescription = AgentDescription(self.agent.jid)
-        agent_description.add_service(manager_service)
-        df.register(agent_description)
-        return agent_description
+            agent_description = AgentDescription(self.agent.jid)
+            agent_description.add_service(manager_service)
+            df.register(agent_description)
+            return agent_description
+
+        except KeyError as e:
+            print(machine_type_counts)
+            print(f"KeyError: {e}")
+            raise
+        except AttributeError as e:
+            print(f"AttributeError: {e}")
+            raise
 
     async def run(self) -> None:
-        msg = await self.receive()
-        log(self.agent, f"Received message")
+        while True:
+            msg = await self.receive()
+            if msg:
+                log(self.agent, f"Received message")
 
-        if msg.get_metadata("ontology") == "order_request":
-            await self.order_received(msg.body)
-        elif msg.get_metadata("ontology") == "order_machine_missing":
-            await self.order_missing_machine_received(msg.body)
-        else:
-            log(self.agent, f"Unknown ontology: {msg.get_metadata('ontology')}")
+                if msg.get_metadata("ontology") == "order_request":
+                    await self.order_received(msg.body)
+                elif msg.get_metadata("ontology") == "order_machine_missing":
+                    await self.order_missing_machine_received(msg.body)
+                else:
+                    log(self.agent, f"Unknown ontology: {msg.get_metadata('ontology')}")
+            else:
+                await asyncio.sleep(1)
 
     async def order_received(self, order: str) -> None:
         order = get_order_info(order)

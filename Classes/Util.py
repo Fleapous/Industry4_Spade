@@ -76,8 +76,18 @@ def get_type(desc: AgentDescription) -> str:
     return desc.services["machine"].properties["type"].value
 
 
+class LogMessage:
+    def __init__(self, time: datetime, message: str):
+        self.time = time
+        self.message = message
+
+
+Log: dict[str, LogMessage] = {}
+
+
 def log(agent: Agent, message: str):
-    print(f"[{datetime.time}] {agent.jid}: {message}")
+    Log[agent.jid] = LogMessage(datetime.now(), message)
+    print(f"[{datetime.now().__str__()}] {agent.jid}: {message}")
 
 
 def get_types() -> list[str]:

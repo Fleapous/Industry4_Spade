@@ -27,17 +27,9 @@ class MachineAgent(Agent):
         self.add_behaviour(behaviour)
 
     def set_busy(self, busy: bool) -> None:
-        self.description.services["machine"].properties["busy"].value = busy
+        log(self, f"Setting busy to {busy}. Services: {self.description.services}")
+        self.description.services['machine'].properties['busy'].value = busy
         df.update(self.description)
-
-    def get_manager(self) -> str:
-        manager_service: ServiceDescription = ServiceDescription(type="manager")
-        group_property: Property = Property("group", self.group)
-        manager_service.add_property(group_property)
-        query: AgentDescription = AgentDescription()
-        query.add_service(manager_service)
-        managers = df.search(query)
-        return managers[0].name
 
 class MachineBehaviour(FSMBehaviour):
     def __init__(self):
@@ -62,7 +54,7 @@ class MachineBehaviour(FSMBehaviour):
         log(self.agent, "Machine stopping.")
         await self.agent.stop()
 
-    def on_unavailable(self, jid) -> None:
+    def on_unavailable(self, jid, stanza) -> None:
         order = self.agent.previous_orders.get(jid)
         if order is not None:
             self.agent.handle_order(order)
@@ -105,18 +97,22 @@ class MachineBehaviour(FSMBehaviour):
             machine_service.add_property(busy_property)
             agent_description: AgentDescription = AgentDescription(self.agent.jid)
             agent_description.add_service(machine_service)
-            self.agent.agent_description = agent_description
+            self.agent.description = agent_description
             df.register(agent_description)
             log(self.agent, "Machine registered with the DF.")
             log(self.agent, "Awaiting message from Manager.")
             while True:
                 msg = await self.receive(10)
                 if msg:
+                    self.agent.manager = msg.sender
                     log(self.agent, f"Subscribing to other Machines in Group {self.agent.group}.")
                     machines = self.get_machines()
+                    log(self.agent, f"Machines found: {len(machines)}.")
                     machine: AgentDescription
                     for machine in machines:
-                        self.presence.subscribe(machine.name)
+                        #print(f'Subscribe to {machine.name}.')
+                        self.presence.subscribe(str(machine.name))
+                        await asyncio.sleep(0.2)
                     break
                 await asyncio.sleep(1)
             log(self.agent, "Transition to Idle state.")
@@ -125,25 +121,23 @@ class MachineBehaviour(FSMBehaviour):
         def get_machines(self) -> list[AgentDescription]:
             machine_service: ServiceDescription = ServiceDescription(type="machine")
 
-            next_item_index = get_next_item_index(self.agent.current_order)
-            type = self.agent.current_order[next_item_index]
-            type_property: Property = Property("type", type)
-            machine_service.add_property(type_property)
-
             group = self.agent.group
             group_property: Property = Property("group", group)
             machine_service.add_property(group_property)
 
             query: AgentDescription = AgentDescription()
             query.add_service(machine_service)
-            return df.search(query)
+            machines = df.search(query)
+            return [machine for machine in machines if machine.name != self.agent.jid]
 
     class IdleState(State):
         async def run(self):
+            log(self.agent, "Starting Idle state.")
             self.agent.set_busy(False)
             while True:
                 msg = await self.receive(10)
                 if msg:
+                    log(self.agent, f"Received message {msg}")
                     if msg.metadata["ontology"] == "order_request":
                         order = get_order_info(msg.body)
                         log(self.agent, f"Order received: {order}.")

@@ -71,7 +71,8 @@ def extract_and_calculate_state_durations_for_agent(target_jid: str):
         match = re.search(state_transition_pattern, log_message.message)
         if match:
             state = match.group(1)
-            time = datetime.strptime(log_message.time, '%Y-%m-%d %H:%M:%S')  # Convert time back to datetime
+            # Correct the datetime format string to include microseconds
+            time = datetime.strptime(str(log_message.time), '%Y-%m-%d %H:%M:%S.%f')
             if state != current_state:
                 if current_state:
                     # Calculate duration for previous state
@@ -83,8 +84,8 @@ def extract_and_calculate_state_durations_for_agent(target_jid: str):
 
     # Calculate duration for the last state transition in the loop
     if current_state and current_state_start_time:
-        duration = (datetime.strptime(log_messages[-1].time,
-                                      '%Y-%m-%d %H:%M:%S') - current_state_start_time).total_seconds()
+        duration = (datetime.strptime(str(log_messages[-1].time),
+                                      '%Y-%m-%d %H:%M:%S.%f') - current_state_start_time).total_seconds()
         state_durations.setdefault(current_state, []).append(duration)
 
     return state_durations
@@ -112,16 +113,16 @@ if __name__ == "__main__":
     plot_average_state_durations()
     # main()
 
+
 def extract_order_times():
     order_times = []
-    #print(Orders)
+    # print(Orders)
     for order in Orders:
-        print(f"{order.start} _ {order.end}")
+        print(f"{order.start} _ {order.end} _ {order.id}")
         if order.end:
             start_time = order.start
             end_time = order.end
             order_times.append((start_time, end_time))
-
     return order_times
 
 
@@ -131,24 +132,18 @@ def plot_order_times():
 
     # Convert datetime objects and calculate durations
     start_times = [start for start, end in order_times]
-    end_times = [end for start, end in order_times]
-    durations = [(end - start).total_seconds() for start, end in zip(start_times, end_times) if end]  # Calculate only if end time is defined
+    durations = [(end - start).total_seconds() for start, end in order_times if
+                 end]  # Calculate only if end time is defined
 
     if not durations:
-        print(order_times) #TODO not getting
-        print("No valid orders found to plot.___________________________________________________________________________________________________")
+        print("No valid orders found to plot.")
         return
-
-    # Calculate average duration
-    avg_duration = sum(durations) / len(durations)
 
     # Plotting the order durations as a bar plot
     plt.figure(figsize=(10, 5))
     plt.bar(start_times, durations, width=0.0003, align='center')
-    plt.axhline(y=avg_duration, color='r', linestyle='--', label=f'Average Duration: {avg_duration:.2f} seconds')
     plt.xlabel('Order Start Time')
     plt.ylabel('Order Duration (seconds)')
     plt.title('Order Durations Over Time')
-    plt.legend()
     plt.grid(True)
     plt.show()

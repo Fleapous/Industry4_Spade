@@ -85,6 +85,7 @@ class DF:
                     )
                     for query_service in query.services.values()
             ):
+                #print(f'query: {query}\nagent: {agent}\n\n')
                 matching_agents.append(agent)
         return matching_agents
 

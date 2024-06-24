@@ -7,7 +7,8 @@ from spade.behaviour import PeriodicBehaviour, FSMBehaviour, State, OneShotBehav
 from spade.message import Message
 
 from Classes.ProductionOrder import ProductionOrder
-from Classes.Util import get_managers, log, get_order_info, get_item_list_parts, get_item_list_counts
+from Classes.Util import get_managers, log, get_order_info, get_item_list_parts, get_item_list_counts, Orders, \
+    OrderRecord
 from DF.DF import ServiceDescription, Property, AgentDescription, df
 
 
@@ -16,12 +17,11 @@ WORKING = "WORKING"
 
 
 class FactoryManagerAgent(spade.agent.Agent):
-    def __init__(self, jid: str, password: str, period: int = 2, *args, **kwargs):
+    def __init__(self, jid: str, password: str, *args, **kwargs):
         super().__init__(jid, password, *args, **kwargs)
-        self.period = period
+        self.order_id = 0
 
     async def setup(self) -> None:
-        await asyncio.sleep(5)
         behaviour = ProductionOrderBehaviour(self)
         self.add_behaviour(behaviour)
 
@@ -34,19 +34,22 @@ def pick_manager(order: str, managers: list[AgentDescription]):
     best_score = -1000
     manager: AgentDescription
     for manager in managers:
+
         manager_score = 0
         service: ServiceDescription = manager.services["manager"]
         if service:
             property: Property
-            for property in service.properties:
+            for property in service.properties.values():
                 order_item: str
                 for order_item in order_items:
                     if order_item == property.name:
                         manager_score += property.value * order_item_counts[order_item]
                         items_found += 1
-        if items_found == order_items.count and manager_score > best_score:
+        print(f"manager: {manager}, score: {manager_score}, items: {items_found}, items_count: {len(order_items)}")
+        if items_found == len(order_items) and manager_score > best_score:
             best_manager = manager
             best_score = manager_score
+    print(f"best manager: {best_manager}, best_score: {best_score}")
     return best_manager
 
 
@@ -63,19 +66,26 @@ class ProductionOrderBehaviour(OneShotBehaviour):
         await self.agent.stop()
 
     async def run(self):
+        log(self.agent, "Factory manager waiting for orders.")
         while True:
             msg = await self.receive(10)
             if msg is None:
-                continue
-            order = get_order_info(msg.body)
-            log(self.agent, f"Received Order: {order}. Looking for GOM Managers.")
+                production_order = ProductionOrder()
+                production_order.generate_items()
+                order = production_order.print_items()
+            else:
+                order = get_order_info(msg.body)
+            log(self.agent, f"Received Order: {order}, order_id: {self.agent.order_id}. Looking for GOM Managers.")
+            Orders.append(OrderRecord(self.agent.order_id))
+            self.agent.order_id += 1
             managers = get_managers(order)
             if managers:
-                log(self.agent, f"Found {managers.count} GOM Managers. Choosing optimal candidate.")
+                log(self.agent, f"Found {len(managers)} GOM Managers. Choosing optimal candidate.")
                 picked_manager = pick_manager(order, managers)
                 log(self.agent, f"GOM Manager chosen: {picked_manager.name}. Sending Order: {order}.")
                 msg = Message(to=str(picked_manager.name))
                 msg.set_metadata("ontology", "order_request")
+                msg.set_metadata("order_id", str(self.agent.order_id))
                 msg.body = order
                 await self.send(msg)
             await asyncio.sleep(1)

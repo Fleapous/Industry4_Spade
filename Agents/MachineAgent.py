@@ -1,12 +1,13 @@
 import asyncio
 import random
+from datetime import datetime
 from typing import Optional
 
 from spade.agent import Agent
 from spade.behaviour import FSMBehaviour, State
 from spade.message import Message
 
-from Classes.Util import log, get_order_info, get_next_item_index, mark_done
+from Classes.Util import log, get_order_info, get_next_item_index, mark_done, is_done, Orders
 from DF.DF import df, AgentDescription, ServiceDescription, Property
 
 
@@ -16,10 +17,12 @@ class MachineAgent(Agent):
         self.type = type
         self.group = group
         self.current_order: Optional[str] = None
+        self.current_order_id: Optional[str] = None
         self.previous_orders: dict[str, str] = {}
         self.previous_agent: str = ""
         self.manager: str = ""
         self.description: AgentDescription = AgentDescription()
+        self.maintenance_probability = 0.1
 
     async def setup(self) -> None:
         self.presence.approve_all = True
@@ -27,7 +30,7 @@ class MachineAgent(Agent):
         self.add_behaviour(behaviour)
 
     def set_busy(self, busy: bool) -> None:
-        log(self, f"Setting busy to {busy}. Services: {self.description.services}")
+        log(self, f"Setting busy to {busy}.")
         self.description.services['machine'].properties['busy'].value = busy
         df.update(self.description)
 
@@ -45,6 +48,7 @@ class MachineBehaviour(FSMBehaviour):
         self.add_transition("Working", "Idle")
         self.add_transition("Idle", "Maintenance")
         self.add_transition("Working", "Maintenance")
+        self.add_transition("Maintenance", "Idle")
 
     async def on_start(self) -> None:
         log(self.agent, "Machine starting.")
@@ -63,11 +67,11 @@ class MachineBehaviour(FSMBehaviour):
         machine = self.get_next_machine()
         if machine:
             self.agent.previous_orders[order] = machine.name
-            self.agent.cancel_order = None
+            self.agent.current_order = None
             await self.send_order(machine.name, order)
         else:
             self.agent.previous_orders[order] = self.agent.manager
-            self.agent.cancel_order = None
+            self.agent.current_order = None
             await self.handle_order_machine_missing(order)
 
     def get_next_machine(self) -> Optional[AgentDescription]:
@@ -137,11 +141,12 @@ class MachineBehaviour(FSMBehaviour):
             while True:
                 msg = await self.receive(10)
                 if msg:
-                    log(self.agent, f"Received message {msg}")
                     if msg.metadata["ontology"] == "order_request":
                         order = get_order_info(msg.body)
-                        log(self.agent, f"Order received: {order}.")
+                        order_id = msg.get_metadata("order_id")
+                        log(self.agent, f"Order received: {order}, order_id: {order_id}")
                         self.agent.current_order = order
+                        self.agent.current_order_id = order_id
                         chance = random.random()
                         if chance < self.agent.maintenance_probability:
                             log(self.agent, "Transition to Maintenance state.")
@@ -162,27 +167,35 @@ class MachineBehaviour(FSMBehaviour):
         async def run(self):
             self.agent.set_busy(True)
             order = self.agent.current_order
-            order = await self.do_work(order)
-            await self.handle_order(order)
+            order_id = self.agent.current_order_id
+            order = await self.do_work(order, order_id)
+            if not is_done(order):
+                await self.handle_order(order)
             log(self.agent, "Transition to Idle state.")
             self.set_next_state("Idle")
 
-        async def do_work(self, order) -> str:
+        async def do_work(self, order, order_id) -> str:
             next_index = get_next_item_index(order)
-            order = mark_done(next_index, order)
-            await self.send_order(self.agent.previous_order, order, "order-part-completed")
+            log(self.agent, f"Starting work on order {order}, order_id {order_id}.")
+            new_order = mark_done(next_index, order)
+            await asyncio.sleep(1)
+            log(self.agent, f"Work done on order {new_order}, order_id {order_id}.")
+            if is_done(order):
+                log(self.agent, f"Order completed: {order}, order_id: {order_id}")
+                Orders[int(order_id)].end = datetime.now()
+            await self.send_order(self.agent.previous_agent, order, "order_part_completed")
             self.agent.previous_agent = ""
-            return order
+            return new_order
 
         async def handle_order(self, order: str) -> None:
             machine = self.get_next_machine()
             if machine:
                 self.agent.previous_orders[order] = machine.name
-                self.agent.cancel_order = None
+                self.agent.current_order = None
                 await self.send_order(machine.name, order)
             else:
                 self.agent.previous_orders[order] = self.agent.manager
-                self.agent.cancel_order = None
+                self.agent.current_order = None
                 await self.handle_order_machine_missing(order)
 
         def get_next_machine(self) -> Optional[AgentDescription]:
@@ -195,7 +208,7 @@ class MachineBehaviour(FSMBehaviour):
             await self.send_order(self.agent.manager, order)
 
         async def send_order(self, jid: str, order: str, ontology: str = "order_request") -> None:
-            msg = Message(to=jid)
+            msg = Message(to=str(jid))
             msg.set_metadata("ontology", ontology)
             msg.body = order
             await self.send(msg)

@@ -74,8 +74,8 @@ class MainBehaviour(spade.behaviour.CyclicBehaviour):
             self.presence.subscribe(str(machine_jid))
 
     def on_available(self, jid, stanza) -> None:
-        machine = self.machines[jid]
-        if machine["available"]:
+        machine = self.machines.get(jid)
+        if not machine or machine["available"]:
             return
 
         type = get_type(machine["description"])
@@ -86,8 +86,8 @@ class MainBehaviour(spade.behaviour.CyclicBehaviour):
         self.machines[jid]["available"] = True
 
     def on_unavailable(self, jid, stanza) -> None:
-        machine = self.machines[jid]
-        if not machine["available"]:
+        machine = self.machines.get(jid)
+        if not machine or not machine["available"]:
             return
 
         type = get_type(machine["description"])
@@ -142,56 +142,68 @@ class MainBehaviour(spade.behaviour.CyclicBehaviour):
         while True:
             msg = await self.receive()
             if msg:
-                log(self.agent, f"Received message")
-
                 if msg.get_metadata("ontology") == "order_request":
-                    await self.order_received(msg.body)
+                    await self.order_received(msg.body, msg.get_metadata("order_id"))
                 elif msg.get_metadata("ontology") == "order_machine_missing":
-                    await self.order_missing_machine_received(msg.body)
+                    await self.order_missing_machine_received(msg.body, msg.get_metadata("order_id"))
+                elif msg.metadata["ontology"] == "order_part_completed":
+                    order = get_order_info(msg.body)
+                    log(self.agent, f"Order progress confirmation received: {order}.")
+                    continue
                 else:
                     log(self.agent, f"Unknown ontology: {msg.get_metadata('ontology')}")
             else:
                 await asyncio.sleep(1)
 
-    async def order_received(self, order: str) -> None:
+    async def order_received(self, order: str, order_id: str) -> None:
         order = get_order_info(order)
-        log(self.agent, f"Received Order: {order}.")
+        log(self.agent, f"Received Order: {order}, order_id: {order_id}.")
         if is_done(order):
             return
 
+        log(self.agent, f"Searching for machine.")
         machine = self.find_machine(order)
         if machine:
-            await self.send_order(order, machine)
+            log(self.agent, f"Machine found: {machine}.")
+            await self.send_order(order, order_id, machine)
         else:
-            await self.order_missing_machine_received(order)
+            log(self.agent, f"Machine not found.")
+            await self.order_missing_machine_received(order, order_id)
 
-    async def order_missing_machine_received(self, order: str) -> None:
+    async def order_missing_machine_received(self, order: str, order_id: str) -> None:
         order = get_order_info(order)
         manager = self.get_available_manager(order)
-        await self.send_order(order, manager)
+        await self.send_order(order, order_id, manager)
 
     def find_machine(self, order: str) -> str:
-        order_items = get_order_info(order)
-        item_index = get_next_item_index(order_items)
-        item = order_items[item_index]
 
         machine_service: ServiceDescription = ServiceDescription(type="machine")
-        type_property: Property = Property(item, None)
+
+        next_item_index = get_next_item_index(order)
+        type = order[next_item_index]
+        type_property: Property = Property("type", type)
         machine_service.add_property(type_property)
+
+        group = self.agent.group
+        group_property: Property = Property("group", group)
+        machine_service.add_property(group_property)
+
+        busy_property: Property = Property("busy", False)
+        machine_service.add_property(busy_property)
 
         query: AgentDescription = AgentDescription()
         query.add_service(machine_service)
-
+        print(f"query: {query}")
         machines = df.search(query)
 
         if machines:
-            # TODO add sm logic here for picking the good one
             return machines[0].name
         return ""
 
-    async def send_order(self, order: str, agent_jid: str) -> None:
-        msg = Message(to=agent_jid)
+    async def send_order(self, order: str, order_id: str, agent_jid: str) -> None:
+        msg = Message(to=str(agent_jid))
         msg.set_metadata("ontology", "order_request")
+        msg.set_metadata("order_id", order_id)
         msg.body = order
         await self.send(msg)
 
@@ -200,6 +212,5 @@ class MainBehaviour(spade.behaviour.CyclicBehaviour):
         managers = get_managers(order_items)
         managers = [manager for manager in managers if manager is not self.description]
         if managers:
-            # TODO add sm logic to it and dont pick the same agent
             return managers[0].name
         return None

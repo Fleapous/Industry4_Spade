@@ -206,33 +206,33 @@ class MachineBehaviour(FSMBehaviour):
             order_id = self.agent.current_order_id
             order = await self.do_work(order, order_id)
             if not is_done(order):
-                await self.handle_order(order)
+                await self.handle_order(order, order_id)
             log(self.agent, "Transition to Idle state.")
             self.set_next_state("Idle")
 
         async def do_work(self, order, order_id) -> str:
             next_index = get_next_item_index(order)
-            log(self.agent, f"Starting work on order {order}, order_id {order_id}.")
+            log(self.agent, f"Starting work on order {order}, order_id: {order_id}.")
             new_order = mark_done(next_index, order)
             await asyncio.sleep(1)
-            log(self.agent, f"Work done on order {new_order}, order_id {order_id}.")
+            log(self.agent, f"Work done on order {new_order}, order_id: {order_id}.")
             if is_done(order):
                 log(self.agent, f"Order completed: {order}, order_id: {order_id}")
                 Orders[int(order_id)].end = datetime.now()
-            await self.send_order(self.agent.previous_agent, order, "order_part_completed")
+            await self.send_order(self.agent.previous_agent, order, order_id,"order_part_completed")
             self.agent.previous_agent = ""
             return new_order
 
-        async def handle_order(self, order: str) -> None:
+        async def handle_order(self, order: str, order_id: str) -> None:
             machine = self.get_next_machine()
             if machine:
                 self.agent.previous_orders[order] = machine.name
                 self.agent.current_order = None
-                await self.send_order(machine.name, order)
+                await self.send_order(machine.name, order, order_id)
             else:
                 self.agent.previous_orders[order] = self.agent.manager
                 self.agent.current_order = None
-                await self.handle_order_machine_missing(order)
+                await self.handle_order_machine_missing(order, order_id)
 
         def get_next_machine(self) -> Optional[AgentDescription]:
             machines = self.get_machines()
@@ -240,12 +240,13 @@ class MachineBehaviour(FSMBehaviour):
                 return machines[0]
             return None
 
-        async def handle_order_machine_missing(self, order: str) -> None:
-            await self.send_order(self.agent.manager, order)
+        async def handle_order_machine_missing(self, order: str, order_id: str) -> None:
+            await self.send_order(self.agent.manager, order, order_id, "order_machine_missing")
 
-        async def send_order(self, jid: str, order: str, ontology: str = "order_request") -> None:
+        async def send_order(self, jid: str, order: str, order_id: str, ontology: str = "order_request") -> None:
             msg = Message(to=str(jid))
             msg.set_metadata("ontology", ontology)
+            msg.set_metadata("order_id", order_id)
             msg.body = order
             await self.send(msg)
 

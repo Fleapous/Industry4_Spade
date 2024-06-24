@@ -105,6 +105,4 @@ class ProductionOrderBehaviour(OneShotBehaviour):
                 msg.set_metadata("order_id", str(self.agent.order_id))
                 msg.body = order
                 await self.send(msg)
-            plot_average_state_durations()
-            plot_order_times()
             await asyncio.sleep(1)

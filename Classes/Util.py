@@ -21,7 +21,7 @@ def get_order_info(order: str) -> str:
     if dollar_index != -1:
         return order[:dollar_index]
     else:
-        return ""
+        return order
 
 
 def is_done(order_list: str) -> bool:
@@ -60,6 +60,7 @@ def get_item_list_counts(item_list: str) -> dict:
 
     return count_dict
 
+
 def get_managers(order_items: str) -> list[AgentDescription]:
     types = get_item_list_parts(order_items)
     manager_service: ServiceDescription = ServiceDescription(type="manager")
@@ -75,6 +76,15 @@ def get_managers(order_items: str) -> list[AgentDescription]:
 def get_type(desc: AgentDescription) -> str:
     return desc.services["machine"].properties["type"].value
 
+class OrderRecord:
+    def __init__(self, id: int, start: datetime = datetime.now(), end: Optional[datetime] = None):
+        self.id = id
+        self.start = start
+        self.end = end
+
+
+Orders: list[OrderRecord] = []
+
 
 class LogMessage:
     def __init__(self, time: datetime, message: str):
@@ -82,11 +92,13 @@ class LogMessage:
         self.message = message
 
 
-Log: dict[str, LogMessage] = {}
+Log: dict[str, list[LogMessage]] = {}
 
 
 def log(agent: Agent, message: str):
-    Log[agent.jid] = LogMessage(datetime.now(), message)
+    if Log.get(agent.jid) is None:
+        Log[agent.jid] = []
+    Log[agent.jid].append(LogMessage(datetime.now(), message))
     print(f"[{datetime.now().__str__()}] {agent.jid}: {message}")
 
 
